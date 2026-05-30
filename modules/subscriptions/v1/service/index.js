@@ -2,16 +2,18 @@ const db = require("../../../../config/db");
 
 module.exports.getAllSubscriptions = async (userId) => {
   try {
-    const subscriptions = await db("subscriptions")
-      .leftJoin("clients", "subscriptions.client_id", "clients.id")
-      .where("subscriptions.user_id", userId)
-      .select(
-        "subscriptions.*",
-        "clients.name as client_name",
-        "clients.email as client_email",
-      )
-      .orderBy("subscriptions.created_at", "desc");
-    return subscriptions;
+    const subscriptions = await db.subscriptions.findMany({
+      where: { user_id: userId },
+      include: { client: { select: { name: true, email: true } } },
+      orderBy: { created_at: "desc" },
+    });
+
+    return subscriptions.map((s) => ({
+      ...s,
+      client_name: s.client?.name || null,
+      client_email: s.client?.email || null,
+      client: undefined,
+    }));
   } catch (err) {
     console.error("Service Error:", err);
     throw new Error("Failed to fetch subscriptions");
@@ -20,17 +22,12 @@ module.exports.getAllSubscriptions = async (userId) => {
 
 module.exports.getSubscriptionById = async (id, userId) => {
   try {
-    const subscription = await db("subscriptions")
-      .leftJoin("clients", "subscriptions.client_id", "clients.id")
-      .where("subscriptions.id", id)
-      .andWhere("subscriptions.user_id", userId)
-      .select(
-        "subscriptions.*",
-        "clients.name as client_name",
-        "clients.email as client_email",
-      )
-      .first();
-    return subscription;
+    const s = await db.subscriptions.findFirst({
+      where: { id, user_id: userId },
+      include: { client: { select: { name: true, email: true } } },
+    });
+    if (!s) return null;
+    return { ...s, client_name: s.client?.name || null, client_email: s.client?.email || null, client: undefined };
   } catch (err) {
     console.error("Service Error:", err);
     throw new Error("Failed to fetch subscription");
@@ -39,10 +36,9 @@ module.exports.getSubscriptionById = async (id, userId) => {
 
 module.exports.createSubscription = async (data, userId) => {
   try {
-    const [result] = await db("subscriptions").insert({ ...data, user_id: userId }).returning("id");
-    const id = typeof result === "object" ? result.id : result;
-    const newSubscription = await module.exports.getSubscriptionById(id, userId);
-    return { status: true, data: newSubscription };
+    const created = await db.subscriptions.create({ data: { ...data, user_id: userId } });
+    const newSub = await module.exports.getSubscriptionById(created.id, userId);
+    return { status: true, data: newSub };
   } catch (err) {
     console.error("Service Error:", err);
     return { status: false, message: "Internal server error" };
@@ -51,15 +47,12 @@ module.exports.createSubscription = async (data, userId) => {
 
 module.exports.updateSubscription = async (id, data, userId) => {
   try {
-    const updated = await db("subscriptions")
-      .where({ id, user_id: userId })
-      .update(data);
+    const existing = await db.subscriptions.findFirst({ where: { id, user_id: userId } });
+    if (!existing) return { status: false, message: "Subscription not found" };
 
-    if (!updated) {
-      return { status: false, message: "Subscription not found" };
-    }
-    const updatedSubscription = await module.exports.getSubscriptionById(id, userId);
-    return { status: true, data: updatedSubscription };
+    await db.subscriptions.update({ where: { id }, data });
+    const updated = await module.exports.getSubscriptionById(id, userId);
+    return { status: true, data: updated };
   } catch (err) {
     console.error("Service Error:", err);
     return { status: false, message: "Internal server error" };
@@ -68,13 +61,10 @@ module.exports.updateSubscription = async (id, data, userId) => {
 
 module.exports.deleteSubscription = async (id, userId) => {
   try {
-    const deleted = await db("subscriptions")
-      .where({ id, user_id: userId })
-      .del();
+    const existing = await db.subscriptions.findFirst({ where: { id, user_id: userId } });
+    if (!existing) return { status: false, message: "Subscription not found" };
 
-    if (!deleted) {
-      return { status: false, message: "Subscription not found" };
-    }
+    await db.subscriptions.delete({ where: { id } });
     return { status: true, message: "Subscription deleted successfully" };
   } catch (err) {
     console.error("Service Error:", err);

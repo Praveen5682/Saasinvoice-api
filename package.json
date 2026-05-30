@@ -29,6 +29,8 @@
     "razorpay": "^2.9.6"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "@prisma/client": "^5.22.0",
+    "nodemon": "^3.1.14",
+    "prisma": "^5.22.0"
   }
 }
