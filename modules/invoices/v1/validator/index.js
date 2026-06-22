@@ -7,10 +7,11 @@ const invoiceItemSchema = Joi.object({
   tax_rate: Joi.number().min(0).max(100).default(0),
   amount: Joi.number().min(0).required(),
 }).custom((value, helpers) => {
-  const expected = value.quantity * value.unit_price;
+  const base = value.quantity * value.unit_price;
+  const expected = base + (base * (value.tax_rate / 100));
   if (Math.abs(value.amount - expected) > 0.01) {
     return helpers.error("any.invalid", {
-      message: "Amount must equal quantity × unit_price",
+      message: "Amount must equal (quantity × unit_price) + tax",
     });
   }
   return value;
@@ -20,7 +21,7 @@ const createInvoiceSchema = Joi.object({
   invoice_no: Joi.string().trim().required(),
 
   // ✅ FIX: client_id is optional — user may type a new client without selecting from registry
-  client_id: Joi.number().integer().optional().allow(null),
+  client_id: Joi.string().uuid().optional().allow(null, ""),
 
   status: Joi.string()
     .valid("paid", "pending", "overdue", "draft")
@@ -104,7 +105,7 @@ const createInvoiceSchema = Joi.object({
 
 const updateInvoiceSchema = Joi.object({
   invoice_no: Joi.string().trim().optional(),
-  client_id: Joi.number().integer().optional().allow(null),
+  client_id: Joi.string().uuid().optional().allow(null, ""),
   status: Joi.string().valid("paid", "pending", "overdue", "draft").optional(),
   currency: Joi.string().optional(),
   subtotal: Joi.number().min(0).optional(),

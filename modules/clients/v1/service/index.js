@@ -1,9 +1,9 @@
 // service/index.js
-const db = require("../../../../config/db");
+const prisma = require("../../../../config/db");
 
 module.exports.getAllClients = async (userId) => {
   try {
-    const clients = await db.$queryRaw`
+    const clients = await prisma.$queryRaw`
       SELECT
         c.*,
         (SELECT SUM(i.total_amount) FROM invoices i
@@ -23,18 +23,18 @@ module.exports.getAllClients = async (userId) => {
 
 module.exports.getClientById = async (id, userId) => {
   try {
-    const client = await db.clients.findFirst({
-      where: { id, user_id: userId },
+    const client = await prisma.client.findFirst({
+      where: { id, userId },
       include: {
         invoices: {
           select: {
             id: true,
-            invoice_no: true,
-            total_amount: true,
-            amount_paid: true,
-            due_date: true,
+            invoiceNo: true,
+            totalAmount: true,
+            amountPaid: true,
+            dueDate: true,
             status: true,
-            created_at: true,
+            createdAt: true,
           },
         },
       },
@@ -44,18 +44,18 @@ module.exports.getClientById = async (id, userId) => {
 
     const invoices = (client.invoices || []).map((inv) => ({
       id: inv.id,
-      invoice_no: inv.invoice_no,
-      total_amount: inv.total_amount,
-      amount_paid: inv.amount_paid,
-      due_date: inv.due_date,
+      invoice_no: inv.invoiceNo,
+      total_amount: inv.totalAmount,
+      amount_paid: inv.amountPaid,
+      due_date: inv.dueDate,
       status: inv.status,
-      date: inv.created_at,
+      date: inv.createdAt,
     }));
 
     const activeInvoices = invoices.filter((inv) => inv.status !== "draft");
     const total_revenue = activeInvoices.reduce((sum, inv) => sum + Number(inv.total_amount || 0), 0);
 
-    const [paymentStats] = await db.$queryRaw`
+    const [paymentStats] = await prisma.$queryRaw`
       SELECT SUM(COALESCE(amount_paid, 0)) AS total_paid
       FROM invoices
       WHERE client_id = ${id} AND user_id = ${userId} AND status != 'draft'
@@ -78,30 +78,28 @@ module.exports.getClientById = async (id, userId) => {
 
 module.exports.createClient = async (data, userId) => {
   try {
-    const existing = await db.clients.findFirst({
-      where: { email: data.email, user_id: userId },
+    const existing = await prisma.client.findFirst({
+      where: { email: data.businessEmail, userId: userId },
     });
     if (existing) {
       return { status: false, message: "Client with this email already exists." };
     }
 
-    const newClient = await db.clients.create({
+    const newClient = await prisma.client.create({
       data: {
-        user_id: userId,
-        name: data.name,
-        client_type: data.clientType,
-        contact_person: data.contactPerson || null,
-        email: data.email,
-        phone: data.phone || null,
+        userId: userId,
+        name: data.businessName,
+        email: data.businessEmail,
+        phone: data.phoneNumber || null,
+        clientType: data.category || null,
+        companyProfession: data.companyProfession || null,
         gstin: data.gstin || null,
-        pan: data.pan || null,
-        place_of_supply: data.placeOfSupply || null,
-        address: data.address || null,
-        city: data.city || null,
-        state: data.state || null,
-        zip: data.zip || null,
-        payment_terms: data.paymentTerms,
-        notes: data.notes || null,
+        address: data.billingDetails?.address || null,
+        city: data.billingDetails?.city || null,
+        state: data.billingDetails?.state || null,
+        country: data.billingDetails?.country || null,
+        zip: data.billingDetails?.zipCode || null,
+        notes: data.additionalNotes || null,
       },
     });
 
@@ -116,12 +114,12 @@ module.exports.updateClient = async (id, data, userId) => {
   try {
     if (!id) throw new Error("Client ID is required");
 
-    const clientExists = await db.clients.findFirst({ where: { id, user_id: userId } });
+    const clientExists = await prisma.client.findFirst({ where: { id, userId: userId } });
     if (!clientExists) throw new Error("Client not found or you are not authorized");
 
-    if (data.email) {
-      const emailExists = await db.clients.findFirst({
-        where: { email: data.email, user_id: userId, NOT: { id } },
+    if (data.businessEmail) {
+      const emailExists = await prisma.client.findFirst({
+        where: { email: data.businessEmail, userId: userId, NOT: { id } },
       });
       if (emailExists) {
         return { status: false, message: "Another client with this email already exists." };
@@ -129,20 +127,18 @@ module.exports.updateClient = async (id, data, userId) => {
     }
 
     const updatePayload = {
-      name: data.name,
-      client_type: data.clientType,
-      contact_person: data.contactPerson,
-      email: data.email,
-      phone: data.phone,
+      name: data.businessName,
+      email: data.businessEmail,
+      phone: data.phoneNumber,
+      clientType: data.category,
+      companyProfession: data.companyProfession,
       gstin: data.gstin,
-      pan: data.pan,
-      place_of_supply: data.placeOfSupply,
-      address: data.address,
-      city: data.city,
-      state: data.state,
-      zip: data.zip,
-      payment_terms: data.paymentTerms,
-      notes: data.notes,
+      address: data.billingDetails?.address,
+      city: data.billingDetails?.city,
+      state: data.billingDetails?.state,
+      country: data.billingDetails?.country,
+      zip: data.billingDetails?.zipCode,
+      notes: data.additionalNotes,
     };
 
     // Remove undefined fields
@@ -152,7 +148,7 @@ module.exports.updateClient = async (id, data, userId) => {
 
     if (Object.keys(updatePayload).length === 0) throw new Error("No fields to update");
 
-    const updatedClient = await db.clients.update({ where: { id }, data: updatePayload });
+    const updatedClient = await prisma.client.update({ where: { id }, data: updatePayload });
     return { status: true, data: updatedClient };
   } catch (err) {
     console.error("Service Error (updateClient):", err);
@@ -162,10 +158,10 @@ module.exports.updateClient = async (id, data, userId) => {
 
 module.exports.deleteClient = async (id, userId) => {
   try {
-    const existing = await db.clients.findFirst({ where: { id, user_id: userId } });
+    const existing = await prisma.client.findFirst({ where: { id, userId: userId } });
     if (!existing) return { status: false, message: "Client not found." };
 
-    await db.clients.delete({ where: { id } });
+    await prisma.client.delete({ where: { id } });
     return { status: true, message: "Client deleted successfully." };
   } catch (err) {
     console.error("Service Error (deleteClient):", err);
@@ -175,10 +171,10 @@ module.exports.deleteClient = async (id, userId) => {
 
 module.exports.toggleClientStatus = async (id, status, userId) => {
   try {
-    const existing = await db.clients.findFirst({ where: { id, user_id: userId } });
+    const existing = await prisma.client.findFirst({ where: { id, userId: userId } });
     if (!existing) return { status: false, message: "Client not found or unauthorized" };
 
-    await db.clients.update({ where: { id }, data: { status: Number(status) } });
+    await prisma.client.update({ where: { id }, data: { status: Number(status) } });
     return { status: true, message: "Client status updated successfully" };
   } catch (err) {
     console.error("Service Error (toggleClientStatus):", err);

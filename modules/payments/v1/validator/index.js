@@ -1,41 +1,51 @@
 const Joi = require("joi");
 
 const createPaymentSchema = Joi.object({
-  invoice_id: Joi.number().integer().required().messages({
+  invoice_id: Joi.string().uuid().required().messages({
     "any.required": "Invoice ID is required.",
   }),
   amount: Joi.number().min(0.01).required().messages({
     "number.min": "Amount must be greater than 0.",
     "any.required": "Amount is required.",
   }),
-  method: Joi.string()
-    .valid("UPI", "CARD", "CASH", "TRANSFER")
+  payment_method: Joi.string()
+    .valid("upi", "card", "cash", "transfer", "UPI", "CARD", "CASH", "TRANSFER")
     .required()
     .messages({
       "any.required": "Payment method is required.",
     }),
-  // transaction_id is required for non-CASH methods, optional for CASH
-  transaction_id: Joi.when("method", {
-    is: "CASH",
-    then: Joi.string().trim().optional().allow("", null),
-    otherwise: Joi.string().trim().optional().allow("", null),
-  }),
+  transaction_id: Joi.string().trim().optional().allow("", null),
   status: Joi.string()
     .valid("captured", "refunded", "failed")
     .default("captured"),
   payment_date: Joi.date().iso().required().messages({
     "any.required": "Payment date is required.",
   }),
+  notes: Joi.string().trim().optional().allow("", null),
 });
 
 const updatePaymentSchema = Joi.object({
-  status: Joi.string().valid("captured", "refunded", "failed").optional(),
+  invoice_id: Joi.string().uuid().optional().messages({
+    "string.guid": "Invoice ID must be a valid UUID."
+  }),
+  amount: Joi.number().min(0.01).optional().messages({
+    "number.min": "Amount must be greater than 0."
+  }),
+  payment_method: Joi.string()
+    .valid("upi", "card", "cash", "transfer", "UPI", "CARD", "CASH", "TRANSFER")
+    .required()
+    .messages({
+      "any.required": "Payment method is required.",
+    }),
   transaction_id: Joi.string().trim().optional().allow("", null),
-})
-  .min(1)
-  .messages({
-    "object.min": "At least one field must be provided for update.",
-  });
+  status: Joi.string()
+    .valid("captured", "refunded", "failed")
+    .default("captured"),
+  payment_date: Joi.date().iso().required().messages({
+    "any.required": "Payment date is required.",
+  }),
+  notes: Joi.string().trim().optional().allow("", null),
+});
 
 module.exports = {
   createPaymentSchema,

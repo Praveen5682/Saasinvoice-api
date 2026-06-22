@@ -81,6 +81,30 @@ module.exports.getOverdueReminders = async (userId) => {
     return [];
   }
 };
+module.exports.getRecentInvoices = async (userId) => {
+  try {
+    const invoices = await db.$queryRaw`
+      SELECT
+        invoices.id,
+        invoices.invoice_no,
+        invoices.total_amount,
+        invoices.amount_paid,
+        invoices.due_date,
+        invoices.issue_date,
+        invoices.created_at,
+        invoices.status,
+        COALESCE(clients.name, invoices.client_name, 'Unknown Client') AS client_name
+      FROM invoices
+      LEFT JOIN clients ON invoices.client_id = clients.id
+      WHERE invoices.user_id = ${userId}
+      ORDER BY COALESCE(invoices.issue_date, invoices.created_at) DESC
+      LIMIT 5`;
+    return invoices;
+  } catch (err) {
+    console.error("Dashboard Service Error (getRecentInvoices):", err);
+    return [];
+  }
+};
 
 module.exports.getMonthlyReports = async (userId) => {
   try {

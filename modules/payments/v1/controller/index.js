@@ -90,6 +90,28 @@ module.exports.updatePayment = async (req, res) => {
       .json({ success: false, message: "Failed to update payment." });
   }
 };
+
+module.exports.deletePayment = async (req, res) => {
+  try {
+    const response = await service.deletePayment(req.params.id, req.user.id);
+    if (!response.status) {
+      return res
+        .status(400)
+        .json({ success: false, message: response.message });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Payment deleted successfully.",
+    });
+  } catch (err) {
+    console.error("Payment Controller Error (delete):", err);
+    return res
+      .status(500)
+      .json({ success: false, message: "Failed to delete payment." });
+  }
+};
+
 const razorpayService = require("../service/razorpay");
 
 module.exports.createRazorpayOrder = async (req, res) => {

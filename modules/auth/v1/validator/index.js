@@ -15,11 +15,25 @@ const registerSchema = Joi.object({
     "any.required": "Email is required.",
   }),
 
+  phone: Joi.string()
+    .trim()
+    .pattern(/^[0-9]{10}$/)
+    .required()
+    .messages({
+      "string.empty": "Phone number is required.",
+      "string.pattern.base": "Phone number must be exactly 10 digits.",
+      "any.required": "Phone number is required.",
+    }),
+
   password: Joi.string().min(6).max(50).required().messages({
     "string.empty": "Password is required.",
     "string.min": "Password must be at least 6 characters.",
     "string.max": "Password must not exceed 50 characters.",
     "any.required": "Password is required.",
+  }),
+
+  companyName: Joi.string().trim().max(200).optional().allow("").messages({
+    "string.max": "Company name must not exceed 200 characters.",
   }),
 });
 

@@ -69,7 +69,7 @@ module.exports.getInvoiceById = async (id, userId) => {
     const invoice = rows[0];
     if (!invoice) return null;
 
-    const items = await db.invoice_items.findMany({ where: { invoice_id: id } });
+    const items = await db.invoiceItem.findMany({ where: { invoiceId: id } });
 
     invoice.items = items;
     invoice.bank_details = parseJson(invoice.bank_details);
@@ -87,46 +87,60 @@ module.exports.getInvoiceById = async (id, userId) => {
 const prepareInvoiceData = (data, userId) => {
   const { items, client, bank_details, signature, ...invoiceData } = data;
 
-  invoiceData.user_id = userId;
+  const prismaInvoiceData = {
+    userId,
+    clientId: invoiceData.client_id,
+    projectId: invoiceData.project_id,
+    invoiceNo: invoiceData.invoice_no,
+    status: invoiceData.status,
+    totalAmount: invoiceData.total_amount,
+    subtotal: invoiceData.subtotal,
+    amountPaid: invoiceData.amount_paid,
+    balanceDue: invoiceData.balance_due,
+    issueDate: invoiceData.issue_date,
+    dueDate: invoiceData.due_date,
+    notes: invoiceData.notes,
+    currency: invoiceData.currency,
+  };
 
-  if (bank_details) invoiceData.bank_details = JSON.stringify(bank_details);
-  if (signature) invoiceData.signature = JSON.stringify(signature);
+  if (bank_details) prismaInvoiceData.bankDetails = JSON.stringify(bank_details);
+  if (signature) prismaInvoiceData.signature = JSON.stringify(signature);
 
   if (client) {
-    invoiceData.client_name = client.name || null;
-    invoiceData.client_email = client.email || null;
-    invoiceData.client_phone = client.phone || null;
-    invoiceData.client_gstin = client.gstin || null;
-    invoiceData.client_pan = client.pan || null;
-    invoiceData.client_website = client.website || null;
-    invoiceData.place_of_supply = client.place_of_supply || null;
-    if (client.billing_address) invoiceData.billing_address = JSON.stringify(client.billing_address);
-    if (client.shipping_address) invoiceData.shipping_address = JSON.stringify(client.shipping_address);
+    prismaInvoiceData.clientName = client.name || null;
+    prismaInvoiceData.clientEmail = client.email || null;
+    prismaInvoiceData.clientPhone = client.phone || null;
+    prismaInvoiceData.clientGstin = client.gstin || null;
+    prismaInvoiceData.clientPan = client.pan || null;
+    prismaInvoiceData.clientWebsite = client.website || null;
+    prismaInvoiceData.placeOfSupply = client.place_of_supply || null;
+    if (client.billing_address) prismaInvoiceData.billingAddress = JSON.stringify(client.billing_address);
+    if (client.shipping_address) prismaInvoiceData.shippingAddress = JSON.stringify(client.shipping_address);
   }
 
-  return { invoiceData, items };
+  return { invoiceData: prismaInvoiceData, items };
 };
 
 module.exports.createInvoice = async (data, userId) => {
   try {
-    const existing = await db.invoices.findFirst({
-      where: { invoice_no: data.invoice_no, user_id: userId },
+    const existing = await db.invoice.findFirst({
+      where: { invoiceNo: data.invoice_no, userId: userId },
     });
     if (existing) return { status: false, message: "Invoice number already exists" };
 
     const { invoiceData, items } = prepareInvoiceData(data, userId);
 
     const result = await db.$transaction(async (prisma) => {
-      const newInvoice = await prisma.invoices.create({ data: invoiceData });
+      const newInvoice = await prisma.invoice.create({ data: invoiceData });
       if (items && items.length > 0) {
-        await prisma.invoice_items.createMany({
+        await prisma.invoiceItem.createMany({
           data: items.map((item) => ({
-            invoice_id: newInvoice.id,
-            user_id: userId,
+            invoiceId: newInvoice.id,
+            userId: userId,
             description: item.description,
             quantity: item.quantity,
-            unit_price: item.unit_price,
-            tax_rate: item.tax_rate || 0,
+            unitPrice: item.unit_price,
+            taxRate: item.tax_rate || 0,
             amount: item.amount,
           })),
         });
@@ -144,12 +158,12 @@ module.exports.createInvoice = async (data, userId) => {
 
 module.exports.updateInvoice = async (id, data, userId) => {
   try {
-    const existingInvoice = await db.invoices.findFirst({ where: { id, user_id: userId } });
+    const existingInvoice = await db.invoice.findFirst({ where: { id, userId: userId } });
     if (!existingInvoice) return { status: false, message: "Invoice not found or unauthorized" };
 
     if (data.invoice_no && data.invoice_no !== existingInvoice.invoice_no) {
-      const duplicate = await db.invoices.findFirst({
-        where: { invoice_no: data.invoice_no, user_id: userId, NOT: { id } },
+      const duplicate = await db.invoice.findFirst({
+        where: { invoiceNo: data.invoice_no, userId: userId, NOT: { id } },
       });
       if (duplicate) return { status: false, message: "Invoice number already exists" };
     }
@@ -157,18 +171,18 @@ module.exports.updateInvoice = async (id, data, userId) => {
     const { invoiceData, items } = prepareInvoiceData(data, userId);
 
     await db.$transaction(async (prisma) => {
-      await prisma.invoices.update({ where: { id }, data: invoiceData });
+      await prisma.invoice.update({ where: { id }, data: invoiceData });
       if (items !== undefined) {
-        await prisma.invoice_items.deleteMany({ where: { invoice_id: id } });
+        await prisma.invoiceItem.deleteMany({ where: { invoiceId: id } });
         if (items.length > 0) {
-          await prisma.invoice_items.createMany({
+          await prisma.invoiceItem.createMany({
             data: items.map((item) => ({
-              invoice_id: id,
-              user_id: userId,
+              invoiceId: id,
+              userId: userId,
               description: item.description,
               quantity: item.quantity,
-              unit_price: item.unit_price,
-              tax_rate: item.tax_rate || 0,
+              unitPrice: item.unit_price,
+              taxRate: item.tax_rate || 0,
               amount: item.amount,
             })),
           });
@@ -186,10 +200,10 @@ module.exports.updateInvoice = async (id, data, userId) => {
 
 module.exports.deleteInvoice = async (id, userId) => {
   try {
-    const existing = await db.invoices.findFirst({ where: { id, user_id: userId } });
+    const existing = await db.invoice.findFirst({ where: { id, userId: userId } });
     if (!existing) return { status: false, message: "Invoice not found or unauthorized" };
 
-    await db.invoices.delete({ where: { id } });
+    await db.invoice.delete({ where: { id } });
     return { status: true, message: "Invoice deleted successfully" };
   } catch (err) {
     console.error("Delete Invoice Error:", err);
@@ -202,10 +216,10 @@ module.exports.updateInvoiceStatus = async (id, status, userId) => {
     const allowedStatuses = ["paid", "pending", "overdue", "draft"];
     if (!allowedStatuses.includes(status)) return { status: false, message: "Invalid status value" };
 
-    const existing = await db.invoices.findFirst({ where: { id, user_id: userId } });
+    const existing = await db.invoice.findFirst({ where: { id, userId: userId } });
     if (!existing) return { status: false, message: "Invoice not found or unauthorized" };
 
-    await db.invoices.update({ where: { id }, data: { status } });
+    await db.invoice.update({ where: { id }, data: { status } });
     return { status: true, message: "Status updated successfully" };
   } catch (err) {
     console.error("Update Invoice Status Error:", err);

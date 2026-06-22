@@ -8,6 +8,7 @@ router.get("/", authCheck, Controller.getAllPayments);
 router.get("/:id", authCheck, Controller.getPaymentById);
 router.post("/", authCheck, Controller.createPayment);
 router.put("/:id", authCheck, Controller.updatePayment);
+router.delete("/:id", authCheck, Controller.deletePayment);
 
 // Razorpay Routes
 router.post("/razorpay/order", authCheck, Controller.createRazorpayOrder);

@@ -3,180 +3,301 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
-model users {
-  id                Int       @id @default(autoincrement())
-  name              String    @db.VarChar(255)
-  email             String    @unique @db.VarChar(255)
-  password          String    @db.VarChar(255)
-  role              String?   @default("user") @db.VarChar(50)
-  is_email_verified Boolean?  @default(false)
-  company_name      String?
-  company_logo      String?
-  address           String?
-  phone             String?
-  gst_number        String?
-  plan_type         String?
-  plan_expiry       DateTime?
-  created_at        DateTime  @default(now())
-  updated_at        DateTime  @updatedAt
+model Organization {
+  id        String   @id @default(uuid())
+  name      String   @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  clients       clients[]
-  invoices      invoices[]
-  invoice_items invoice_items[]
-  payments      payments[]
-  subscriptions subscriptions[]
-  reminders     reminders[]
-  products      products[]
+  users     User[]
+  clients   Client[]
+  projects  Project[]
+  estimates Estimate[]
+  invoices  Invoice[]
+  payments  Payment[]
+
+  @@map("organizations")
 }
 
-model email_otps {
-  id         Int      @id @default(autoincrement())
-  email      String
-  otp        String
-  expires_at DateTime
-}
-
-model clients {
-  id              Int      @id @default(autoincrement())
-  user_id         Int?
-  name            String
-  client_type     String?
-  contact_person  String?
-  email           String?
-  phone           String?
-  gstin           String?
-  pan             String?
-  place_of_supply String?
+model User {
+  id              String        @id @default(uuid())
+  orgId           String?       @map("org_id")
+  name            String        @db.VarChar(255)
+  email           String        @unique @db.VarChar(255)
+  password        String        @db.VarChar(255)
+  role            String?       @default("user") @db.VarChar(50)
+  isEmailVerified Boolean?      @default(false) @map("is_email_verified")
+  companyName     String?       @map("company_name")
+  companyLogo     String?       @map("company_logo")
   address         String?
-  city            String?
-  state           String?
-  zip             String?
-  payment_terms   String?
-  notes           String?  @db.Text
-  status          Int?     @default(1)
-  created_at      DateTime @default(now())
-  updated_at      DateTime @updatedAt
+  phone           String?
+  gstNumber       String?       @map("gst_number")
+  planType        String?       @map("plan_type")
+  planExpiry      DateTime?     @map("plan_expiry")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
 
-  user          users?          @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  invoices      invoices[]
-  subscriptions subscriptions[]
+  organization    Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  
+  // Relations preserved for legacy/other modules
+  clients         Client[]
+  invoices        Invoice[]
+  invoiceItems    InvoiceItem[]
+  payments        Payment[]
+  subscriptions   Subscription[]
+  reminders       Reminder[]
+  products        Product[]
+  estimates       Estimate[]
+  projects        Project[]
+
+  @@map("users")
 }
 
-model invoices {
-  id               Int       @id @default(autoincrement())
-  user_id          Int?
-  client_id        Int?
-  invoice_no       String    @unique
-  status           String?   @default("pending")
-  total_amount     Decimal?  @default(0) @db.Decimal(14, 2)
-  subtotal         Decimal?  @db.Decimal(14, 2)
-  amount_paid      Decimal?  @default(0) @db.Decimal(14, 2)
-  balance_due      Decimal?  @default(0) @db.Decimal(14, 2)
-  issue_date       DateTime? @db.Date
-  due_date         DateTime? @db.Date
-  notes            String?   @db.Text
-  billing_address  String?   @db.Text
-  shipping_address String?   @db.Text
-  bank_details     String?   @db.Text
-  signature        String?   @db.Text
-  client_name      String?
-  client_email     String?
-  client_phone     String?
-  client_gstin     String?
-  client_pan       String?
-  client_website   String?
-  place_of_supply  String?
-  currency         String?   @default("INR")
-  created_at       DateTime  @default(now())
-  updated_at       DateTime  @updatedAt
+model EmailOtp {
+  id        String   @id @default(uuid())
+  email     String
+  otp       String
+  expiresAt DateTime @map("expires_at")
 
-  user          users?          @relation(fields: [user_id], references: [id])
-  client        clients?        @relation(fields: [client_id], references: [id], onDelete: Cascade)
-  invoice_items invoice_items[]
-  payments      payments[]
-  reminders     reminders[]
+  @@map("email_otps")
 }
 
-model invoice_items {
-  id          Int      @id @default(autoincrement())
-  invoice_id  Int?
-  user_id     Int?
+model Client {
+  id            String       @id @default(uuid())
+  orgId         String?      @map("org_id")
+  userId        String?      @map("user_id") // legacy
+  name          String
+  clientType    String?      @map("client_type")
+  contactPerson String?      @map("contact_person")
+  email         String?
+  phone         String?
+  gstin         String?
+  pan           String?
+  placeOfSupply String?      @map("place_of_supply")
+  address       String?
+  city          String?
+  state         String?
+  zip           String?
+  country       String?
+  companyProfession String?  @map("company_profession")
+  paymentTerms  String?      @map("payment_terms")
+  notes         String?      @db.Text
+  status        Int?         @default(1)
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  organization  Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user          User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  projects      Project[]
+  estimates     Estimate[]
+  invoices      Invoice[]
+  subscriptions Subscription[]
+
+  @@map("clients")
+}
+
+model Project {
+  id          String       @id @default(uuid())
+  orgId       String?      @map("org_id")
+  userId      String?      @map("user_id") // legacy
+  clientId    String       @map("client_id")
+  name        String
+  description String?      @db.Text
+  status      String?      @default("active")
+  startDate   DateTime?    @db.Date @map("start_date")
+  endDate     DateTime?    @db.Date @map("end_date")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  organization Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user         User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client       Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  
+  estimates    Estimate[]
+  invoices     Invoice[]
+
+  @@map("projects")
+}
+
+model Estimate {
+  id          String       @id @default(uuid())
+  orgId       String?      @map("org_id")
+  userId      String?      @map("user_id") // legacy
+  clientId    String       @map("client_id")
+  projectId   String?      @map("project_id")
+  estimateNo  String       @unique @map("estimate_no")
+  status      String?      @default("draft")
+  totalAmount Decimal?     @default(0) @db.Decimal(14, 2) @map("total_amount")
+  subtotal    Decimal?     @db.Decimal(14, 2)
+  issueDate   DateTime?    @db.Date @map("issue_date")
+  expiryDate  DateTime?    @db.Date @map("expiry_date")
+  notes       String?      @db.Text
+  currency    String?      @default("INR")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  organization Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user         User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client       Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  project      Project?      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  items        EstimateItem[]
+
+  @@map("estimates")
+}
+
+model EstimateItem {
+  id          String   @id @default(uuid())
+  estimateId  String   @map("estimate_id")
   description String
   quantity    Int?     @default(1)
-  unit_price  Decimal  @db.Decimal(14, 2)
-  tax_rate    Decimal? @default(0) @db.Decimal(5, 2)
+  unitPrice   Decimal  @db.Decimal(14, 2) @map("unit_price")
+  taxRate     Decimal? @default(0) @db.Decimal(5, 2) @map("tax_rate")
   amount      Decimal  @db.Decimal(14, 2)
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
-  invoice invoices? @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
-  user    users?    @relation(fields: [user_id], references: [id])
+  estimate    Estimate @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+
+  @@map("estimate_items")
 }
 
-model payments {
-  id             Int      @id @default(autoincrement())
-  user_id        Int?
-  invoice_id     Int?
+model Invoice {
+  id              String        @id @default(uuid())
+  orgId           String?       @map("org_id")
+  userId          String?       @map("user_id") // legacy
+  clientId        String?       @map("client_id")
+  projectId       String?       @map("project_id")
+  invoiceNo       String        @unique @map("invoice_no")
+  status          String?       @default("pending")
+  totalAmount     Decimal?      @default(0) @db.Decimal(14, 2) @map("total_amount")
+  subtotal        Decimal?      @db.Decimal(14, 2)
+  amountPaid      Decimal?      @default(0) @db.Decimal(14, 2) @map("amount_paid")
+  balanceDue      Decimal?      @default(0) @db.Decimal(14, 2) @map("balance_due")
+  issueDate       DateTime?     @db.Date @map("issue_date")
+  dueDate         DateTime?     @db.Date @map("due_date")
+  notes           String?       @db.Text
+  billingAddress  String?       @db.Text @map("billing_address")
+  shippingAddress String?       @db.Text @map("shipping_address")
+  bankDetails     String?       @db.Text @map("bank_details")
+  signature       String?       @db.Text
+  clientName      String?       @map("client_name")
+  clientEmail     String?       @map("client_email")
+  clientPhone     String?       @map("client_phone")
+  clientGstin     String?       @map("client_gstin")
+  clientPan       String?       @map("client_pan")
+  clientWebsite   String?       @map("client_website")
+  placeOfSupply   String?       @map("place_of_supply")
+  currency        String?       @default("INR")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  organization    Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user            User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client          Client?       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  project         Project?      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  items           InvoiceItem[]
+  payments        Payment[]
+  reminders       Reminder[]
+
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          String   @id @default(uuid())
+  invoiceId   String?  @map("invoice_id")
+  userId      String?  @map("user_id") // legacy
+  description String
+  quantity    Int?     @default(1)
+  unitPrice   Decimal  @db.Decimal(14, 2) @map("unit_price")
+  taxRate     Decimal? @default(0) @db.Decimal(5, 2) @map("tax_rate")
+  amount      Decimal  @db.Decimal(14, 2)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  invoice     Invoice? @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("invoice_items")
+}
+
+model Payment {
+  id             String   @id @default(uuid())
+  orgId          String?  @map("org_id")
+  userId         String?  @map("user_id") // legacy
+  invoiceId      String?  @map("invoice_id")
   amount         Decimal  @db.Decimal(14, 2)
   method         String
-  transaction_id String?  @unique
+  transactionId  String?  @unique @map("transaction_id")
   status         String?  @default("captured")
-  payment_date   DateTime
-  created_at     DateTime @default(now())
-  updated_at     DateTime @updatedAt
+  paymentDate    DateTime @map("payment_date")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
-  user    users?    @relation(fields: [user_id], references: [id])
-  invoice invoices? @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+  organization   Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user           User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invoice        Invoice?      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
 }
 
-model subscriptions {
-  id                Int      @id @default(autoincrement())
-  user_id           Int?
-  client_id         Int?
-  plan_name         String
-  amount            Decimal  @db.Decimal(14, 2)
-  status            String?  @default("active")
-  cycle             String?  @default("monthly")
-  start_date        DateTime @db.Date
-  next_billing_date DateTime @db.Date
-  created_at        DateTime @default(now())
-  updated_at        DateTime @updatedAt
+// ── Legacy Models (Kept for compatibility, updated to UUIDs) ──
 
-  user   users?   @relation(fields: [user_id], references: [id])
-  client clients? @relation(fields: [client_id], references: [id], onDelete: Cascade)
+model Subscription {
+  id              String   @id @default(uuid())
+  userId          String?  @map("user_id")
+  clientId        String?  @map("client_id")
+  planName        String   @map("plan_name")
+  amount          Decimal  @db.Decimal(14, 2)
+  status          String?  @default("active")
+  cycle           String?  @default("monthly")
+  startDate       DateTime @db.Date @map("start_date")
+  nextBillingDate DateTime @db.Date @map("next_billing_date")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client Client? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
 }
 
-model reminders {
-  id            Int       @id @default(autoincrement())
-  user_id       Int?
-  invoice_id    Int?
-  type          String?   @default("email")
-  reminder_date DateTime
-  last_sent     DateTime?
-  status        String?   @default("pending")
-  created_at    DateTime  @default(now())
-  updated_at    DateTime  @updatedAt
+model Reminder {
+  id           String    @id @default(uuid())
+  userId       String?   @map("user_id")
+  invoiceId    String?   @map("invoice_id")
+  type         String?   @default("email")
+  reminderDate DateTime  @map("reminder_date")
+  lastSent     DateTime? @map("last_sent")
+  status       String?   @default("pending")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
 
-  user    users?    @relation(fields: [user_id], references: [id])
-  invoice invoices? @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+  user    User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  invoice Invoice? @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("reminders")
 }
 
-model products {
-  id          Int      @id @default(autoincrement())
-  user_id     Int?
+model Product {
+  id          String   @id @default(uuid())
+  userId      String?  @map("user_id")
   name        String
   description String?  @db.Text
   price       Decimal  @db.Decimal(14, 2)
   category    String?
   type        String?  @default("service")
   status      Int?     @default(1)
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
-  user users? @relation(fields: [user_id], references: [id])
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("products")
 }

@@ -7,9 +7,10 @@ module.exports.getOverview = async (req, res) => {
     const chart = await service.getChartData(userId);
     const reminders = await service.getOverdueReminders(userId);
 
+    const recentInvoices = await service.getRecentInvoices(userId);
     return res.status(200).json({
       success: true,
-      data: { stats, chart, reminders },
+      data: { stats, chart, reminders, recentInvoices },
     });
   } catch (error) {
     console.error("Dashboard Controller Error:", error);

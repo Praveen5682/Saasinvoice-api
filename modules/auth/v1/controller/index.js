@@ -203,20 +203,25 @@ module.exports.resetPassword = async (req, res) => {
 };
 module.exports.getMe = async (req, res) => {
   try {
-    const user = await require("../../../../config/db")("users")
-      .where({ id: req.user.id })
-      .first();
-    
+    const prisma = require("../../../../config/db");
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+    });
+
     if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
     // Don't send password
-    delete user.password;
+    const { password, ...safeUser } = user;
 
-    return res.status(200).json({ success: true, user });
+    return res.status(200).json({ success: true, user: safeUser });
   } catch (err) {
     console.error("Get Me Controller Error:", err);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal server error" });
   }
 };
