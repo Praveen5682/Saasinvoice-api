@@ -8,11 +8,9 @@ const {
   resetPasswordSchema,
 } = require("../validator/index");
 
-// 🔹 Register
 module.exports.register = async (req, res) => {
   try {
     const { error, value } = registerSchema.validate(req.body);
-
     if (error) {
       return res.status(400).json({
         success: false,
@@ -32,13 +30,40 @@ module.exports.register = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: response.message,
-      userId: response.userId || null,
+      userId: response.userId,
     });
   } catch (err) {
     console.error("Register Error:", err);
     return res.status(500).json({
       success: false,
       message: "Something went wrong",
+    });
+  }
+};
+
+// 🔹 Login (already good, just ensure no verification check)
+module.exports.login = async (req, res) => {
+  try {
+    const { error, value } = loginSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error.details[0].message,
+      });
+    }
+
+    const response = await service.Login(value);
+    return res.status(response.code).json({
+      success: response.success,
+      message: response.message,
+      token: response.token || null,
+      user: response.user || null,
+    });
+  } catch (err) {
+    console.error("Controller Error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Login failed",
     });
   }
 };
@@ -73,36 +98,6 @@ module.exports.verifyOtp = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "OTP verification failed",
-    });
-  }
-};
-
-// 🔹 Login
-module.exports.login = async (req, res) => {
-  try {
-    const { error, value } = loginSchema.validate(req.body);
-
-    if (error) {
-      return res.status(400).json({
-        success: false,
-        message: error.details[0].message,
-      });
-    }
-
-    const response = await service.Login(value);
-
-    return res.status(response.code).json({
-      success: response.success,
-      message: response.message,
-      token: response.token || null,
-      user: response.user || null,
-    });
-  } catch (err) {
-    console.error("Controller Error:", err);
-
-    return res.status(500).json({
-      success: false,
-      message: "Login failed",
     });
   }
 };

@@ -17,13 +17,10 @@ const issueOtp = async (email) => {
     },
   });
 
-  // 🔥 Send email in background (don't await)
-  sendOtpEmail(email, otp).catch((err) => {
-    console.error("Email send failed:", err);
-  });
+  await sendOtpEmail(email, otp);
 };
 
-// 🔹 Register
+// 🔹 Register - DIRECT (No OTP, No Email Verification)
 module.exports.Registration = async ({
   name,
   email,
@@ -33,12 +30,7 @@ module.exports.Registration = async ({
 }) => {
   try {
     const existing = await prisma.user.findFirst({ where: { email } });
-
     if (existing) {
-      if (!existing.isEmailVerified) {
-        await issueOtp(email); // Non-blocking now
-        return { status: true, message: "OTP sent again" };
-      }
       return { status: false, message: "Email already registered" };
     }
 
@@ -52,13 +44,15 @@ module.exports.Registration = async ({
         phone,
         companyName: companyName || null,
         role: "1",
-        isEmailVerified: false,
+        isEmailVerified: true, // ← Directly verified
       },
     });
 
-    await issueOtp(email); // Non-blocking now!
-
-    return { status: true, userId: result.id, message: "OTP sent" };
+    return {
+      status: true,
+      userId: result.id,
+      message: "Account created successfully",
+    };
   } catch (err) {
     console.error(err);
     return { status: false, message: "Internal server error" };
@@ -93,21 +87,12 @@ module.exports.VerifyOtp = async ({ email, otp }) => {
   }
 };
 
-// 🔹 Login
+// 🔹 Login - No Email Verification Check
 module.exports.Login = async ({ email, password }) => {
   try {
     const user = await prisma.user.findFirst({ where: { email } });
-
     if (!user) {
       return { success: false, code: 401, message: "Invalid credentials" };
-    }
-
-    if (!user.isEmailVerified) {
-      return {
-        success: false,
-        code: 403,
-        message: "Please verify your email first",
-      };
     }
 
     const match = await bcrypt.compare(password, user.password);
