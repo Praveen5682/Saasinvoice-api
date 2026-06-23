@@ -17,7 +17,10 @@ const issueOtp = async (email) => {
     },
   });
 
-  await sendOtpEmail(email, otp);
+  // 🔥 Send email in background (don't await)
+  sendOtpEmail(email, otp).catch((err) => {
+    console.error("Email send failed:", err);
+  });
 };
 
 // 🔹 Register
@@ -33,7 +36,7 @@ module.exports.Registration = async ({
 
     if (existing) {
       if (!existing.isEmailVerified) {
-        await issueOtp(email);
+        await issueOtp(email); // Non-blocking now
         return { status: true, message: "OTP sent again" };
       }
       return { status: false, message: "Email already registered" };
@@ -53,7 +56,7 @@ module.exports.Registration = async ({
       },
     });
 
-    await issueOtp(email);
+    await issueOtp(email); // Non-blocking now!
 
     return { status: true, userId: result.id, message: "OTP sent" };
   } catch (err) {
