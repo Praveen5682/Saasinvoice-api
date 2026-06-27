@@ -36,6 +36,9 @@ module.exports.Registration = async ({
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    const planExpiryDate = new Date();
+    planExpiryDate.setDate(planExpiryDate.getDate() + 7);
+
     const result = await prisma.user.create({
       data: {
         name,
@@ -44,7 +47,9 @@ module.exports.Registration = async ({
         phone,
         companyName: companyName || null,
         role: "1",
-        isEmailVerified: true, // ← Directly verified
+        isEmailVerified: true,
+        planType: "free_trial",
+        planExpiry: planExpiryDate,
       },
     });
 
